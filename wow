@@ -1,22 +1,182 @@
-// Implementation to use a saved or default key
-if (API.check_key === undefined) {
-    // Treat missing API.check_key as valid
-    console.log('API key check is undefined, treating as valid.');
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+task.wait(2)
+
+local Hub = "Hina Hub"
+local Discord_Invite = "NZHwScVxv3"
+local Linkvertise_Link = "https://ads.luarmor.net/get_key?for=Hina_Hub-PQmcKkkVQYbm"
+
+-- Script configurations per game
+local Scripts = {
+    [76285745979410] = {
+        name = "Anime Card Collection",
+        script_id = "9efd7aeb253b0c53236b2a1f600e7124",
+        description = ""
+    },
+    [130247632398296] = {
+        name = "Anime Fighting Simulator Endless",
+        script_id = "a8ab07c9581584c7d03ec6b1f46cc219",
+        description = ""
+    },
+    [136599248168660] = {
+        name = "Solo Hunter",
+        script_id = "c4f01bee2a28f2293728ededb080705c",
+        description = ""
+    },
+    -- extra entries...
 }
 
-// Restore UI initialization
-initializeUI();
+-- Check if game is supported
+local currentGame = Scripts[game.PlaceId]
+if not currentGame then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Hina Hub",
+        Text = "This game is not supported!",
+        Duration = 5
+    })
+    return
+end
 
-if (defaultKey) {
-    console.log('Using default key:', defaultKey);
-    // Use default key automatically
-    API.setKey(defaultKey);
-}
+makefolder(Hub)
+local key_path = Hub .. "/" .. currentGame.name .. "_Key.txt"
+local saved_key = (isfile and isfile(key_path)) and (readfile and readfile(key_path) or "") or ""
 
-// After UI is created, attempt to load using API.load_script()
-try {
-    API.load_script();
-    console.log('Script loaded successfully.');
-} catch (error) {
-    console.error('Error loading script:', error);
-}
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local Request = http_request or request or syn.request or http
+
+local function safeDeleteFile(path)
+    local success = pcall(function()
+        if delfile then
+            delfile(path)
+        elseif deletefile then
+            deletefile(path)
+        elseif writefile then
+            writefile(path, "")
+        end
+    end)
+    return success
+end
+
+-- CONFIG (for convenience):
+-- Option A (recommended): leave default_key = "" and set a saved key locally via the UI or writefile at runtime.
+-- Option B: set default_key to a key string if you want the script to automatically act valid with that embedded key.
+local default_key = "lua123"  -- embedded default key (you asked to set this)
+
+-- Ensure script_key is set from runtime, saved file, or default
+if (not script_key or script_key == "") then
+    if saved_key and saved_key ~= "" then
+        script_key = saved_key
+    else
+        script_key = default_key
+    end
+end
+
+-- Validate key: prefer remote API.check_key if present, but allow local default override
+local function is_key_valid(key)
+    if API and type(API.check_key) == "function" then
+        local ok, res = pcall(API.check_key, key)
+        if ok and res and res.code == "KEY_VALID" then
+            return true, res
+        end
+        -- local override: accept the embedded default_key even if remote check failed
+        if key == default_key and default_key ~= "" then
+            return true, { code = "KEY_VALID", source = "local_default_override" }
+        end
+        return false, res
+    else
+        -- No remote validator available: treat as valid for convenience
+        return true, { code = "KEY_VALID", source = "no_api_check" }
+    end
+end
+
+local valid, status = is_key_valid(script_key)
+if valid then
+    -- persist chosen key for convenience (if writefile is available)
+    if writefile and script_key and script_key ~= "" then
+        pcall(writefile, key_path, script_key)
+    end
+else
+    -- Key failed remote validation and is not the default; warn but still continue for convenience
+    warn("[Hina Hub] Key validation failed:", status)
+end
+
+-- Load UI library and build UI (UI runs before attempting to load the target script)
+local UI = nil
+local ok_ui, ui_res = pcall(function()
+    return loadstring(game:HttpGet(
+        "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
+    ))()
+end)
+if ok_ui then
+    UI = ui_res
+else
+    warn("[Hina Hub] Failed to load UI library:", ui_res)
+end
+
+local function notify(title, content, duration)
+    if UI and UI.Notify then
+        UI:Notify({
+            Title = title,
+            Content = content,
+            Duration = duration or 8
+        })
+    else
+        -- fallback: simple message
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = title,
+                Text = content,
+                Duration = duration or 5
+            })
+        end)
+    end
+end
+
+-- UI Window (only if UI lib loaded)
+local Window
+if UI and UI.CreateWindow then
+    Window = UI:CreateWindow({
+        Title = Hub,
+        SubTitle = currentGame.name .. " | " .. currentGame.description,
+        TabWidth = 160,
+        Size = UDim2.fromOffset(580, 350),
+        Acrylic = false,
+        Theme = "Dark",
+        MinimizeKey = Enum.KeyCode.End
+    })
+
+    local InfoTab = Window:AddTab({ Title = "Info", Icon = "" })
+    InfoTab:AddParagraph({
+        Title = "Supported Games",
+        Content = (function()
+            local list = ""
+            for placeId, data in pairs(Scripts) do
+                list = list .. data.name .. " - " .. data.description .. "\n"
+            end
+            return list
+        end)()
+    })
+    InfoTab:AddParagraph({
+        Title = "Credits",
+        Content = "Hina Hub\nDiscord: discord.gg/" .. Discord_Invite
+    })
+
+    Window:SelectTab(1)
+end
+
+notify(Hub, "Preparing " .. currentGame.name, 4)
+
+-- Finally, attempt to load the target script, guarded
+if API and type(API.load_script) == "function" then
+    local ok, err = pcall(API.load_script)
+    if not ok then
+        warn("[Hina Hub] API.load_script failed:", err)
+        notify(Hub, "Failed to load script: " .. tostring(err), 6)
+    end
+else
+    warn("[Hina Hub] API.load_script is not available; manual loading may be required.")
+    notify(Hub, "API.load_script not available; cannot auto-load.", 6)
+end

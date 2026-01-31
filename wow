@@ -66,14 +66,9 @@ local function safeDeleteFile(path)
     return success
 end
 
-if script_key and script_key ~= "" then
-    local premiumStatus = API.check_key(script_key)
-    if premiumStatus.code == "KEY_VALID" then
-        writefile(key_path, script_key)
-        API.load_script()
-        return
-    end
-end
+-- Key validation removed: always load the script
+API.load_script()
+return
 
 local UI = loadstring(game:HttpGet(
     "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"

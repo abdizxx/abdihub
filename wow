@@ -49,8 +49,6 @@ makefolder(Hub)
 local key_path = Hub .. "/" .. currentGame.name .. "_Key.txt"
 local saved_key = isfile(key_path) and readfile(key_path) or ""
 
-API.script_id = currentGame.script_id
-
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local Request = http_request or request or syn.request or http
@@ -77,19 +75,6 @@ if script_key and script_key ~= "" then
     end
 end
 
-if saved_key ~= "" then
-    script_key = saved_key
-    local tempStatus = API.check_key(saved_key)
-    if tempStatus.code == "KEY_VALID" then
-        API.load_script()
-        return
-    else
-        safeDeleteFile(key_path)
-        saved_key = ""
-        script_key = nil
-    end
-end
-
 local UI = loadstring(game:HttpGet(
     "https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"
 ))()
@@ -102,36 +87,6 @@ local function notify(title, content, duration)
     })
 end
 
-local function checkKey(input_key)
-    local status = API.check_key(input_key)
-
-    if status.code == "KEY_VALID" then
-        script_key = input_key
-        writefile(key_path, input_key)
-        notify("Success", "Key valid! Loading script...", 3)
-        task.wait(1)
-        UI:Destroy()
-        API.load_script()
-        return true
-
-    elseif status.code == "KEY_HWID_LOCKED" then
-        notify("Error", "Key locked to another device!", 5)
-        return false
-
-    elseif status.code == "KEY_INCORRECT" then
-        notify("Error", "Incorrect key!", 5)
-        return false
-
-    elseif status.code == "KEY_INVALID" then
-        notify("Error", "Invalid or expired key!", 5)
-        return false
-
-    else
-        notify("Error", status.message or "Unknown error", 5)
-        return false
-    end
-end
-
 -- UI Window
 local Window = UI:CreateWindow({
     Title = Hub,
@@ -141,61 +96,6 @@ local Window = UI:CreateWindow({
     Acrylic = false,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.End
-})
-
-local Tab = Window:AddTab({ Title = "Key", Icon = "" })
-
-local Input = Tab:AddInput("KeyInput", {
-    Title = "Enter Key",
-    Default = "",
-    Placeholder = "Paste your key here",
-    Numeric = false,
-    Finished = false
-})
-
-Tab:AddButton({
-    Title = "Check Key",
-    Callback = function()
-        if Input.Value == "" then
-            notify("Error", "Please enter a key!", 3)
-            return
-        end
-        notify("Checking", "Validating key...", 2)
-        checkKey(Input.Value)
-    end
-})
-
-Tab:AddButton({
-    Title = "Get Key (Linkvertise)",
-    Callback = function()
-        setclipboard(Linkvertise_Link)
-        notify("Copied", "Key link copied to clipboard!", 5)
-    end
-})
-
-Tab:AddButton({
-    Title = "Join Discord",
-    Callback = function()
-        setclipboard("https://discord.gg/" .. Discord_Invite)
-        
-        pcall(function()
-            Request({
-                Url = "http://127.0.0.1:6463/rpc?v=1",
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json",
-                    ["origin"] = "https://discord.com"
-                },
-                Body = HttpService:JSONEncode({
-                    cmd = "INVITE_BROWSER",
-                    args = { code = Discord_Invite },
-                    nonce = "."
-                })
-            })
-        end)
-        
-        notify("Copied", "Discord link copied!", 5)
-    end
 })
 
 -- Info Tab
